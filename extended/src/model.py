@@ -130,8 +130,6 @@ class DWTLayer(nn.Module):
     def __init__(self, time_step, channel, hidden_dim=5):
         super(DWTLayer, self).__init__()
 
-        self.norm_cA = nn.BatchNorm1d(num_features=channel)
-        self.norm_cD = nn.BatchNorm1d(num_features=channel)
         self.time_step = time_step
         self.low_mix_layer = Mixer2dTriU(time_step, channel)
         self.high_mix_layer = Mixer2dTriU(time_step, channel)
@@ -141,11 +139,8 @@ class DWTLayer(nn.Module):
         #     nn.GELU(),
         #     nn.Linear(hidden_dim, channel),
         # )
-        # self.ln = nn.LayerNorm(2 * channel)
-        self.fuse_layer = nn.ConvTranspose1d(
-            in_channels=channel * 2, out_channels=channel, kernel_size=2, stride=2
-        )
-        self.acv = nn.GELU()
+        # self.ln = nn.LayerNorm([time_step, 2 * channel])
+        self.mlp_fuse = nn.Linear(2 * channel, channel)
 
     def forward(self, cA, cD):
         # cA = self.lnA(cA.permute(0, 2, 1))
@@ -154,18 +149,12 @@ class DWTLayer(nn.Module):
         # cA = cA.permute(0, 2, 1)
         # cD = cD.permute(0, 2, 1)
 
-        cA = self.norm_cA(cA.permute(0, 2, 1)).permute(0, 2, 1)  # Normalize cA
-        cD = self.norm_cD(cD.permute(0, 2, 1)).permute(0, 2, 1)  # Normalize cD
-
         cA = self.low_mix_layer(cA)
         cD = self.high_mix_layer(cD)
 
         x = torch.cat([cA, cD], dim=-1)
-        x = x.permute(0, 2, 1)
         # x = self.ln(x)
-        x = self.fuse_layer(x)
-        x = self.acv(x)
-        x = x.permute(0, 2, 1)
+        x = self.mlp_fuse(x)
 
         return x
 
@@ -239,9 +228,13 @@ class StockMixer(nn.Module):
         super(StockMixer, self).__init__()
         self.mixer = MultTime2dMixer(time_steps, channels)
         self.channel_fc = nn.Linear(channels, 1)
-        self.time_fc = nn.Linear(time_steps * 2 + time_steps // 2 + time_steps // 4, 1)
+        self.time_fc = nn.Linear(
+            time_steps + time_steps // 2 + time_steps // 4 + time_steps // 8, 1
+        )
         self.stock_mixer = NoGraphMixer(stocks, market)
-        self.time_fc_ = nn.Linear(time_steps * 2 + time_steps // 2 + time_steps // 4, 1)
+        self.time_fc_ = nn.Linear(
+            time_steps + time_steps // 2 + time_steps // 4 + time_steps // 8, 1
+        )
 
     def forward(self, inputs):
         y = self.mixer(inputs)
