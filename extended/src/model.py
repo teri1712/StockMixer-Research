@@ -139,7 +139,7 @@ class DWTLayer(nn.Module):
         #     nn.GELU(),
         #     nn.Linear(hidden_dim, channel),
         # )
-        # self.ln = nn.LayerNorm([time_step, 2 * channel])
+        self.ln = nn.LayerNorm([time_step, 2 * channel])
         self.mlp_fuse = nn.Linear(2 * channel, channel)
 
     def forward(self, cA, cD):
@@ -153,7 +153,7 @@ class DWTLayer(nn.Module):
         cD = self.high_mix_layer(cD)
 
         x = torch.cat([cA, cD], dim=-1)
-        # x = self.ln(x)
+        x = self.ln(x)
         x = self.mlp_fuse(x)
 
         return x
