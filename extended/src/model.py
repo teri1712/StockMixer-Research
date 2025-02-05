@@ -139,8 +139,8 @@ class DWTLayer(nn.Module):
         #     nn.GELU(),
         #     nn.Linear(hidden_dim, channel),
         # )
-        self.ln = nn.LayerNorm([time_step, 2 * channel])
-        self.mlp_fuse = nn.Linear(2 * channel, channel)
+        # self.ln = nn.LayerNorm([time_step * 2, channel])
+        # self.mlp_fuse = nn.Linear(2 * channel, channel)
 
     def forward(self, cA, cD):
         # cA = self.lnA(cA.permute(0, 2, 1))
@@ -152,9 +152,9 @@ class DWTLayer(nn.Module):
         cA = self.low_mix_layer(cA)
         cD = self.high_mix_layer(cD)
 
-        x = torch.cat([cA, cD], dim=-1)
-        x = self.ln(x)
-        x = self.mlp_fuse(x)
+        x = torch.cat([cA, cD], dim=1)
+        # x = self.ln(x)
+        # x = self.mlp_fuse(x)
 
         return x
 
@@ -228,13 +228,9 @@ class StockMixer(nn.Module):
         super(StockMixer, self).__init__()
         self.mixer = MultTime2dMixer(time_steps, channels)
         self.channel_fc = nn.Linear(channels, 1)
-        self.time_fc = nn.Linear(
-            time_steps + time_steps // 2 + time_steps // 4 + time_steps // 8, 1
-        )
+        self.time_fc = nn.Linear(time_steps * 2 + time_steps // 2 + time_steps // 4, 1)
         self.stock_mixer = NoGraphMixer(stocks, market)
-        self.time_fc_ = nn.Linear(
-            time_steps + time_steps // 2 + time_steps // 4 + time_steps // 8, 1
-        )
+        self.time_fc_ = nn.Linear(time_steps * 2 + time_steps // 2 + time_steps // 4, 1)
 
     def forward(self, inputs):
         y = self.mixer(inputs)
